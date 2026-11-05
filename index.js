@@ -9,7 +9,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessageReactions
   ]
 });
 
@@ -22,6 +23,7 @@ const RETOURS_DEMANDES_CHANNEL_ID = "1567148784889233458";
 const TABLEAU_CHANNEL_ID = "1567187177283129384";
 const PUNITIONS_CHANNEL_ID = "1567186290170929342";
 const SESSIONS_CHANNEL_ID = "1567186618090135652";
+const ORDRES_CHANNEL_ID = "1567149145838325821";
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 const OWNER_ID = "1236056295338147991";
 
@@ -30,6 +32,7 @@ const pendingProofs = new Map();
 
 let warnings = [];
 let dashboardMessageId = null;
+let dailyTasks = [];
 
 function loadWarnings() {
   try {
@@ -74,9 +77,12 @@ client.once('clientReady', async () => {
 
   cron.schedule('30 20 * * *', () => sendJournalReminder(), { timezone: "Europe/Paris" });
   cron.schedule('0 22 * * *', () => checkJournal(), { timezone: "Europe/Paris" });
-
   cron.schedule('30 21 * * *', () => sendRetoursReminder(), { timezone: "Europe/Paris" });
   cron.schedule('0 23 * * *', () => checkRetours(), { timezone: "Europe/Paris" });
+
+  // Tâches
+  cron.schedule('0 7 * * *', () => postDailyTasks(), { timezone: "Europe/Paris" });
+  cron.schedule('30 23 * * *', () => checkTasks(), { timezone: "Europe/Paris" });
 });
 
 function getRecentWarnings() {
@@ -169,6 +175,83 @@ async function setSpeechPermission(guild, canSpeak) {
     await channel.permissionOverwrites.edit(soumiseRole, {
       SendMessages: canSpeak
     });
+  }
+}
+
+function getTodayTasks() {
+  const day = new Date().getDay();
+  const date = new Date().getDate();
+  const month = new Date().getMonth();
+
+  let tasks = [
+    "Réveil",
+    "Lavage",
+    "Skincare matin",
+    "Habillage",
+    "Coiffage",
+    "Maquillage",
+    "Démaquillage",
+    "Skincare soir",
+    "Lavage (soir)",
+    "Coucher à 23h"
+  ];
+
+  if (day === 3) tasks.push("Lavage de cheveux", "Limage des ongles");
+  if (day === 6) tasks.push("Ménage");
+  if (day === 0) tasks.push("Rasage", "Sourcils", "Couper les ongles", "Changer les draps", "Changer les serviettes", "Shampoing");
+
+  if (date === 15) {
+    tasks.push("Prendre RDV ongles");
+    if ([0, 3, 6, 9].includes(month)) tasks.push("RDV coiffeur");
+  }
+
+  return tasks;
+}
+
+async function postDailyTasks() {
+  const channel = await client.channels.fetch(ORDRES_CHANNEL_ID);
+  const tasks = getTodayTasks();
+  dailyTasks = [];
+
+  await channel.send("**Tâches du jour**\nRéagis avec ✅ sur chaque tâche une fois terminée.");
+
+  for (const task of tasks) {
+    const msg = await channel.send(`- ${task}`);
+    await msg.react('✅');
+    dailyTasks.push({ id: msg.id, task, done: false });
+  }
+}
+
+async function checkTasks() {
+  const channel = await client.channels.fetch(ORDRES_CHANNEL_ID);
+  let missing = [];
+
+  for (const t of dailyTasks) {
+    try {
+      const msg = await channel.messages.fetch(t.id);
+      const reaction = msg.reactions.cache.get('✅');
+      if (reaction && reaction.count > 1) {
+        t.done = true;
+        await axios.post(APPS_SCRIPT_URL, {
+          type: "tache",
+          tache: t.task,
+          statut: "Faite"
+        });
+      } else {
+        missing.push(t.task);
+        await axios.post(APPS_SCRIPT_URL, {
+          type: "tache",
+          tache: t.task,
+          statut: "Non faite"
+        });
+      }
+    } catch (e) {}
+  }
+
+  if (missing.length > 0) {
+    const general = await client.channels.fetch(CHANNEL_ID);
+    await general.send(`❌ **Tâches non faites :**\n${missing.map(m => `- ${m}`).join('\n')}`);
+    await addWarning(general.guild, `Tâches non faites : ${missing.join(', ')}`);
   }
 }
 
@@ -323,6 +406,11 @@ client.on('messageCreate', async message => {
     if (message.content === '!silence') {
       await setSpeechPermission(message.guild, false);
       await message.reply("🔇 Silence. Elle ne peut plus écrire dans #général, #sessions et #punitions.");
+      return;
+    }
+
+    if (message.content === '!taches') {
+      await postDailyTasks();
       return;
     }
   }
