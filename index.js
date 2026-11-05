@@ -32,7 +32,8 @@ const pendingProofs = new Map();
 
 let warnings = [];
 let dashboardMessageId = null;
-let dailyTasks = [];
+let morningTasks = [];
+let eveningTasks = [];
 
 function loadWarnings() {
   try {
@@ -80,9 +81,9 @@ client.once('clientReady', async () => {
   cron.schedule('30 21 * * *', () => sendRetoursReminder(), { timezone: "Europe/Paris" });
   cron.schedule('0 23 * * *', () => checkRetours(), { timezone: "Europe/Paris" });
 
-  // Tâches
   cron.schedule('0 7 * * *', () => postDailyTasks(), { timezone: "Europe/Paris" });
-  cron.schedule('30 23 * * *', () => checkTasks(), { timezone: "Europe/Paris" });
+  cron.schedule('0 12 * * *', () => checkMorningTasks(), { timezone: "Europe/Paris" });
+  cron.schedule('0 23 * * *', () => checkEveningTasks(), { timezone: "Europe/Paris" });
 });
 
 function getRecentWarnings() {
@@ -178,18 +179,23 @@ async function setSpeechPermission(guild, canSpeak) {
   }
 }
 
-function getTodayTasks() {
-  const day = new Date().getDay();
-  const date = new Date().getDate();
-  const month = new Date().getMonth();
-
-  let tasks = [
+function getMorningTasks() {
+  return [
     "Réveil",
     "Lavage",
     "Skincare matin",
     "Habillage",
     "Coiffage",
-    "Maquillage",
+    "Maquillage"
+  ];
+}
+
+function getEveningTasks() {
+  const day = new Date().getDay();
+  const date = new Date().getDate();
+  const month = new Date().getMonth();
+
+  let tasks = [
     "Démaquillage",
     "Skincare soir",
     "Lavage (soir)",
@@ -210,48 +216,56 @@ function getTodayTasks() {
 
 async function postDailyTasks() {
   const channel = await client.channels.fetch(ORDRES_CHANNEL_ID);
-  const tasks = getTodayTasks();
-  dailyTasks = [];
+  morningTasks = [];
+  eveningTasks = [];
 
-  await channel.send("**Tâches du jour**\nRéagis avec ✅ sur chaque tâche une fois terminée.");
-
-  for (const task of tasks) {
+  await channel.send("**Tâches du matin**\nÀ valider avant 12h.");
+  for (const task of getMorningTasks()) {
     const msg = await channel.send(`- ${task}`);
     await msg.react('✅');
-    dailyTasks.push({ id: msg.id, task, done: false });
+    morningTasks.push({ id: msg.id, task });
+  }
+
+  await channel.send("**Tâches du soir**\nÀ valider avant 23h.");
+  for (const task of getEveningTasks()) {
+    const msg = await channel.send(`- ${task}`);
+    await msg.react('✅');
+    eveningTasks.push({ id: msg.id, task });
   }
 }
 
-async function checkTasks() {
+async function checkMorningTasks() {
+  await checkTaskList(morningTasks, "matin");
+}
+
+async function checkEveningTasks() {
+  await checkTaskList(eveningTasks, "soir");
+}
+
+async function checkTaskList(taskList, period) {
   const channel = await client.channels.fetch(ORDRES_CHANNEL_ID);
   let missing = [];
 
-  for (const t of dailyTasks) {
+  for (const t of taskList) {
     try {
       const msg = await channel.messages.fetch(t.id);
       const reaction = msg.reactions.cache.get('✅');
-      if (reaction && reaction.count > 1) {
-        t.done = true;
-        await axios.post(APPS_SCRIPT_URL, {
-          type: "tache",
-          tache: t.task,
-          statut: "Faite"
-        });
-      } else {
-        missing.push(t.task);
-        await axios.post(APPS_SCRIPT_URL, {
-          type: "tache",
-          tache: t.task,
-          statut: "Non faite"
-        });
-      }
+      const done = reaction && reaction.count > 1;
+      
+      await axios.post(APPS_SCRIPT_URL, {
+        type: "tache",
+        tache: t.task,
+        statut: done ? "Faite" : "Non faite"
+      });
+
+      if (!done) missing.push(t.task);
     } catch (e) {}
   }
 
   if (missing.length > 0) {
     const general = await client.channels.fetch(CHANNEL_ID);
-    await general.send(`❌ **Tâches non faites :**\n${missing.map(m => `- ${m}`).join('\n')}`);
-    await addWarning(general.guild, `Tâches non faites : ${missing.join(', ')}`);
+    await general.send(`❌ **Tâches du ${period} non faites :**\n${missing.map(m => `- ${m}`).join('\n')}`);
+    await addWarning(general.guild, `Tâches ${period} non faites : ${missing.join(', ')}`);
   }
 }
 
