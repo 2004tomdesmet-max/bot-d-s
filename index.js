@@ -15,6 +15,7 @@ const client = new Client({
 });
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
+const ANNONCES_CHANNEL_ID = "1567147974822469813";
 const PREUVES_CHANNEL_ID = "1567149477914087535";
 const JOURNAL_CHANNEL_ID = "1567149506745602100";
 const RETOURS_CHANNEL_ID = "1567149194244788376";
@@ -127,7 +128,7 @@ async function addWarning(guild, reason) {
   const count = getRecentWarnings();
   await updateDashboard();
 
-  const channel = await client.channels.fetch(CHANNEL_ID);
+  const channel = await client.channels.fetch(ANNONCES_CHANNEL_ID);
 
   if (count === 2) {
     await channel.send(`⚠️ **Attention** – Tu as maintenant **2 avertissements** sur les dernières 24h.`);
@@ -267,14 +268,14 @@ async function checkTaskList(taskList, period) {
   }
 
   if (missing.length > 0) {
-    const general = await client.channels.fetch(CHANNEL_ID);
-    await general.send(`❌ **Tâches du ${period} non faites :**\n${missing.map(m => `- ${m}`).join('\n')}`);
-    await addWarning(general.guild, `Tâches ${period} non faites : ${missing.join(', ')}`);
+    const annonces = await client.channels.fetch(ANNONCES_CHANNEL_ID);
+    await annonces.send(`❌ **Tâches du ${period} non faites :**\n${missing.map(m => `- ${m}`).join('\n')}`);
+    await addWarning(annonces.guild, `Tâches ${period} non faites : ${missing.join(', ')}`);
   }
 }
 
 async function sendJournalReminder() {
-  const channel = await client.channels.fetch(CHANNEL_ID);
+  const channel = await client.channels.fetch(ANNONCES_CHANNEL_ID);
   await channel.send(`📝 **Rappel** – N’oublie pas d’écrire dans <#${JOURNAL_CHANNEL_ID}> avant 22h.`);
 }
 
@@ -288,14 +289,14 @@ async function checkJournal() {
   );
 
   if (!hasPosted) {
-    const general = await client.channels.fetch(CHANNEL_ID);
-    await general.send(`❌ **Journal manquant** – Tu n’as pas écrit dans <#${JOURNAL_CHANNEL_ID}> aujourd’hui.`);
-    await addWarning(general.guild, "Journal non écrit");
+    const annonces = await client.channels.fetch(ANNONCES_CHANNEL_ID);
+    await annonces.send(`❌ **Journal manquant** – Tu n’as pas écrit dans <#${JOURNAL_CHANNEL_ID}> aujourd’hui.`);
+    await addWarning(annonces.guild, "Journal non écrit");
   }
 }
 
 async function sendRetoursReminder() {
-  const channel = await client.channels.fetch(CHANNEL_ID);
+  const channel = await client.channels.fetch(ANNONCES_CHANNEL_ID);
   await channel.send(`📝 **Rappel** – N’oublie pas d’écrire dans <#${RETOURS_CHANNEL_ID}> avant 23h.`);
 }
 
@@ -309,9 +310,9 @@ async function checkRetours() {
   );
 
   if (!hasPosted) {
-    const general = await client.channels.fetch(CHANNEL_ID);
-    await general.send(`❌ **Retours manquants** – Tu n’as pas écrit dans <#${RETOURS_CHANNEL_ID}> aujourd’hui.`);
-    await addWarning(general.guild, "Retours-ordres non écrits");
+    const annonces = await client.channels.fetch(ANNONCES_CHANNEL_ID);
+    await annonces.send(`❌ **Retours manquants** – Tu n’as pas écrit dans <#${RETOURS_CHANNEL_ID}> aujourd’hui.`);
+    await addWarning(annonces.guild, "Retours-ordres non écrits");
   }
 }
 
@@ -334,7 +335,7 @@ function scheduleRandomProofs() {
 }
 
 async function sendProofRequest() {
-  const channel = await client.channels.fetch(CHANNEL_ID);
+  const channel = await client.channels.fetch(ANNONCES_CHANNEL_ID);
   if (!channel) return;
 
   const message = await channel.send({
@@ -359,7 +360,7 @@ async function sendProofRequest() {
 }
 
 async function sendCheckin(hour) {
-  const channel = await client.channels.fetch(CHANNEL_ID);
+  const channel = await client.channels.fetch(ANNONCES_CHANNEL_ID);
   if (!channel) return;
 
   const displayHour = `${hour}h`;
@@ -477,8 +478,8 @@ client.on('messageCreate', async message => {
 
     if (hasCorrectFormat && hasAttachment) {
       await message.react('✅');
-      const generalChannel = await client.channels.fetch(CHANNEL_ID);
-      await generalChannel.send(`✅ **Preuve reçue**`);
+      const annonces = await client.channels.fetch(ANNONCES_CHANNEL_ID);
+      await annonces.send(`✅ **Preuve reçue**`);
 
       const taskName = content.substring(8).trim();
       const fileUrls = message.attachments.map(att => att.url).join('\n');
