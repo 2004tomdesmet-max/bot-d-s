@@ -431,6 +431,12 @@ client.on('messageCreate', async message => {
       await postDailyTasks();
       return;
     }
+
+    if (message.content === '!testavertissement') {
+      await addWarning(message.guild, "Test manuel");
+      await message.reply("Avertissement de test ajouté.");
+      return;
+    }
   }
 
   if (message.channel.id === JOURNAL_CHANNEL_ID || message.channel.id === RETOURS_CHANNEL_ID) {
