@@ -130,6 +130,8 @@ async function addWarning(guild, reason) {
 
   const channel = await client.channels.fetch(ANNONCES_CHANNEL_ID);
 
+  await channel.send(`⚠️ **Avertissement** – ${reason}\nTotal (24h) : **${count}**`);
+
   if (count === 2) {
     await channel.send(`⚠️ **Attention** – Tu as maintenant **2 avertissements** sur les dernières 24h.`);
   }
