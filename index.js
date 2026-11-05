@@ -24,6 +24,7 @@ const TABLEAU_CHANNEL_ID = "1567187177283129384";
 const PUNITIONS_CHANNEL_ID = "1567186290170929342";
 const SESSIONS_CHANNEL_ID = "1567186618090135652";
 const ORDRES_CHANNEL_ID = "1567149145838325821";
+const AVERTISSEMENTS_CHANNEL_ID = "1567149532737839166";
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 const OWNER_ID = "1236056295338147991";
 
@@ -157,6 +158,9 @@ async function addWarning(guild, reason) {
     const punitionsChannel = await client.channels.fetch(PUNITIONS_CHANNEL_ID);
     await punitionsChannel.send(`⛓️ **Punition activée**\nDate : ${new Date().toLocaleString("fr-FR")}\nAvertissements : 8`);
   }
+
+  const avertissementsChannel = await client.channels.fetch(AVERTISSEMENTS_CHANNEL_ID);
+  await avertissementsChannel.send(`⚠️ **Avertissement**\nMotif : ${reason}\nDate : ${new Date().toLocaleString("fr-FR")}`);
 
   await axios.post(APPS_SCRIPT_URL, {
     type: "avertissement",
